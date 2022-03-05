@@ -1,0 +1,20 @@
+{
+  "timeZone": "Europe/London",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "bmImportScript",
+        "version": "5",
+        "libraryId": "1LKm0bAC7d7KRD958B2B4bcjJ4o1sCwYZAu95s_vV0zSWy0A37BVGIUJH",
+        "developmentMode": false
+      }
+    ]
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.projects",
+    "https://www.googleapis.com/auth/script.deployments.readonly"
+  ]
+}
