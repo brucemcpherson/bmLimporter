@@ -183,6 +183,42 @@ class Limporter {
     return code
   }
 
+  /**
+   * revert to library version
+   */
+  revert (params) {
+    
+    // throw an error on failure as all should be present
+    const folder = this.getImportFolder(params)
+    const manifest = this.getImportManifestName(params)
+
+    const project = this.sapi.getProject(params).throw()
+    console.log(`reverting ${project.data.title} - ${project.data.scriptId}`)
+    const content = this.sapi.getProjectContent(params).throw()
+
+    const {files} = content.data
+
+    // find any imported files except the original manifest
+    const originalManifests = files.filter(f=>f.name === manifest)
+    if (originalManifests.length !==1) {
+      throw new Error (`Can't revert: Missing or multiple ${manifest}`)
+    }
+    const originalManifest = originalManifests[0]
+    
+    // get rid of everything imported and just keep the project files and original manifest
+    const newFiles = files
+      .filter(f=>!(f.name.startsWith(folder) || this.sapi.isManifest(f)) || f.name === manifest)
+
+    //rename the original to the new
+    originalManifest.name = 'appsscript'
+    if (!this.sapi.isManifest(originalManifest)) {
+      throw new Error (`${JSON.stringify(originalManifest.name)} is invalid`)
+    }
+    // this is the reverted project
+    return newFiles
+
+  }
+
   getInlineProjectFiles(params) {
 
     // inline all the libraries
@@ -522,6 +558,9 @@ class Limporter {
     console.log(`Sloppy upgrade of reference to library ${scriptId}:(${title}) from version ${versionNumber} to head  (${description})`)
     return 0
   }
+  nameSweeper (name)  {
+    return name.replace(/^[^a-zA-Z_$]|[^\w$]/g, "_")
+  }
   /**
    * get project tree
    */
@@ -553,7 +592,7 @@ class Limporter {
     const namespace = {
       depth,
       files: data.files.filter(f => !this.sapi.isManifest(f) && f.name !== this.getImportManifestName(patchedParams)),
-      namespaceName: isChild ? `__${project.data.title}_v${versionNumber}` : 'global',
+      namespaceName: this.nameSweeper((isChild ? `__${project.data.title}_v${versionNumber}` : 'global')),
       manifest,
       scriptId,
       versionTreatment: versionTreatment.name,
