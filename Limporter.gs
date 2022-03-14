@@ -186,8 +186,8 @@ class Limporter {
   /**
    * revert to library version
    */
-  revert (params) {
-    
+  revert(params) {
+
     // throw an error on failure as all should be present
     const folder = this.getImportFolder(params)
     const manifest = this.getImportManifestName(params)
@@ -196,28 +196,44 @@ class Limporter {
     console.log(`reverting ${project.data.title} - ${project.data.scriptId}`)
     const content = this.sapi.getProjectContent(params).throw()
 
-    const {files} = content.data
+    const { files } = content.data
 
     // find any imported files except the original manifest
-    const originalManifests = files.filter(f=>f.name === manifest)
-    if (originalManifests.length !==1) {
-      throw new Error (`Can't revert: Missing or multiple ${manifest}`)
+    const originalManifests = files.filter(f => f.name === manifest)
+    if (originalManifests.length !== 1) {
+      throw new Error(`Can't revert: Missing or multiple ${manifest}`)
     }
     const originalManifest = originalManifests[0]
-    
+
     // get rid of everything imported and just keep the project files and original manifest
     const newFiles = files
-      .filter(f=>!(f.name.startsWith(folder) || this.sapi.isManifest(f)) || f.name === manifest)
+      .filter(f => !(f.name.startsWith(folder) || this.sapi.isManifest(f)) || f.name === manifest)
 
     //rename the original to the new
     originalManifest.name = 'appsscript'
     if (!this.sapi.isManifest(originalManifest)) {
-      throw new Error (`${JSON.stringify(originalManifest.name)} is invalid`)
+      throw new Error(`${JSON.stringify(originalManifest.name)} is invalid`)
     }
     // this is the reverted project
     return newFiles
 
   }
+
+  refreshInlineProjectFiles(params) {
+
+    console.log('doing a refresh - first step is to revert to libraries')
+    const revertedFiles = this.revert(params)
+
+    console.log('doing a refresh - next step is to inline the porentially updated libraries')
+    return this.getInlineProjectFiles({
+      ...params,
+      projectContent: {
+        files: revertedFiles
+      }
+    })
+  }
+
+
 
   getInlineProjectFiles(params) {
 
@@ -302,7 +318,7 @@ class Limporter {
    */
   getAst(file) {
     return {
-      ast: acorn.parse(file.source, {
+      ast: bmAcorn.acorn.parse(file.source, {
         sourceType: "script",
         ecmaVersion: 12,
         allowReserved: true
@@ -558,7 +574,7 @@ class Limporter {
     console.log(`Sloppy upgrade of reference to library ${scriptId}:(${title}) from version ${versionNumber} to head  (${description})`)
     return 0
   }
-  nameSweeper (name)  {
+  nameSweeper(name) {
     return name.replace(/^[^a-zA-Z_$]|[^\w$]/g, "_")
   }
   /**
@@ -567,22 +583,23 @@ class Limporter {
   getProjectTree(params, scripts, depth, namespaces) {
 
     // inherit sapi params
-    const { noCache, userSymbol = '', scriptId } = params
+    const { noCache, userSymbol = '', scriptId, projectContent } = params
     const versionTreatment = this.validateTreatments(params)
 
     // throw an error on failure as all should be present
     const project = this.sapi.getProject(params).throw()
     console.log(`Working (${depth}) on ${depth ? 'library' : 'project'} ${project.data.title} - ${project.data.scriptId}`)
-    if(depth > this.MAX_DEPTH) throw new Error(`Maximum depth ${this.MAX_DEPTH} exceeded - likely circular reference(s) in dependent libraries`)
+    if (depth > this.MAX_DEPTH) throw new Error(`Maximum depth ${this.MAX_DEPTH} exceeded - likely circular reference(s) in dependent libraries`)
     // if its a library we're getting, then we need to know which version we're getting
     // if version isnt specified, we'll be getting head anyway
     // if its top level, we dont need to bother
     const versionNumber = depth ? this.getVersionNumber(params, versionTreatment, project.data) : params.versionNumber
     const patchedParams = { ...params, versionNumber }
-    const content = this.sapi.getProjectContent(patchedParams).throw()
+    // normally we go and fetch the project content, but if the top level content is passed over, we can use that instead (revert/convert would do this)
+    const content = projectContent && !depth ? { data: projectContent } : this.sapi.getProjectContent(patchedParams).throw()
     const { data } = content
     const isChild = depth > 0
-    
+
 
     // the depth is used to decide whether a namespace is required
     // depth 0 is actually the global space
@@ -592,7 +609,7 @@ class Limporter {
     const namespace = {
       depth,
       files: data.files.filter(f => !this.sapi.isManifest(f) && f.name !== this.getImportManifestName(patchedParams)),
-      namespaceName: this.nameSweeper((isChild ? `__${project.data.title}_v${versionNumber}` : 'global')),
+      namespaceName: this.nameSweeper((isChild ? `__${project.data.title}_${project.data.scriptId.slice(-4)}_v${versionNumber}` : 'global')),
       manifest,
       scriptId,
       versionTreatment: versionTreatment.name,
