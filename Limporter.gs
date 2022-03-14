@@ -219,22 +219,6 @@ class Limporter {
 
   }
 
-  refreshInlineProjectFiles(params) {
-
-    console.log('doing a refresh - first step is to revert to libraries')
-    const revertedFiles = this.revert(params)
-
-    console.log('doing a refresh - next step is to inline the porentially updated libraries')
-    return this.getInlineProjectFiles({
-      ...params,
-      projectContent: {
-        files: revertedFiles
-      }
-    })
-  }
-
-
-
   getInlineProjectFiles(params) {
 
     // inline all the libraries
@@ -371,6 +355,16 @@ class Limporter {
    * pull out the name of the variable/funciton to be exported
    */
   makeExports(ast, type, accessor) {
+    // possible discovered values of type
+    // ignoring
+    // EmptyExpression
+    // ExpressionStatement
+
+    // handling
+    // FunctionDeclaration
+    // VariableDeclaration
+    // ClassDeclaration
+
     return this.getBody(ast, type).map(c => accessor(c))
   }
 
@@ -380,13 +374,14 @@ class Limporter {
    * @param {File[]} files the files to be parsed
    * @return {object[]} 
    */
-  getExports(files) {
+  getExports(params, files) {
     return files.map(this.getAst)
       .map(({ file, ast }) => ({
         file,
         ast,
         functions: this.makeExports(ast, 'FunctionDeclaration', (f) => f.id.name),
-        variables: this.makeExports(ast, 'VariableDeclaration', (f) => f.declarations[0].id.name)
+        variables: this.makeExports(ast, 'VariableDeclaration', (f) => f.declarations[0].id.name),
+        classes: params.exportClasses ? this.makeExports(ast, 'ClassDeclaration', (f) => f.id.name) : []
       }))
   }
   /**
@@ -469,7 +464,10 @@ class Limporter {
 
     // all the sources of needed to make this export
     const allSource = [].concat(...exports.map(f => this.commenter(f, indent)))
-    const allExports = [].concat(...exports.map(f => [].concat(...f.functions, ...f.variables)))
+    const allExports = [].concat(...exports.map(f => [].concat(
+      f.functions.length ? [`// functions from ${f.file.name}`] : [], ...f.functions,
+      f.variables.length ? [`// variables from ${f.file.name}`] : [], ...f.variables,
+      f.classes.length ? [`// classes from ${f.file.name}`] : [], ...f.classes)))
 
     // hoist namespace name
     const hoist = `function ${namespaceName} () {${ns}`
@@ -583,7 +581,7 @@ class Limporter {
   getProjectTree(params, scripts, depth, namespaces) {
 
     // inherit sapi params
-    const { noCache, userSymbol = '', scriptId, projectContent } = params
+    const { noCache, userSymbol = '', scriptId, projectContent, exportClasses } = params
     const versionTreatment = this.validateTreatments(params)
 
     // throw an error on failure as all should be present
@@ -615,7 +613,7 @@ class Limporter {
       versionTreatment: versionTreatment.name,
       versionNumber,
       userSymbol,
-      exports: isChild ? this.getExports(serverFiles) : null,
+      exports: isChild ? this.getExports(params, serverFiles) : null,
       title: project.data.title
     }
 
@@ -635,6 +633,7 @@ class Limporter {
         userSymbol,
         noCache,
         versionTreatment: versionTreatment.name,
+        exportClasses
       }, scripts, depth + 1, namespaces)
       return n
     })
