@@ -6,9 +6,13 @@
     "libraries": [
       {
         "userSymbol": "bmImportScript",
-        "version": "5",
         "libraryId": "1LKm0bAC7d7KRD958B2B4bcjJ4o1sCwYZAu95s_vV0zSWy0A37BVGIUJH",
-        "developmentMode": false
+        "version": "6"
+      },
+      {
+        "userSymbol": "bmAcorn",
+        "libraryId": "14oo1VEGy8Ggp7jCZR9YPSFHxU_jj5F0GcM6nsS_CR2YlT6Ej5ACHu1jE",
+        "version": "1"
       }
     ]
   },
